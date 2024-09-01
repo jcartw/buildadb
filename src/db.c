@@ -54,6 +54,13 @@ typedef struct {
   void* pages[TABLE_MAX_PAGES];
 } Table;
 
+typedef enum {
+  META_COMMAND_SUCCESS,
+  META_COMMAND_UNRECOGNIZED_COMMAND
+} MetaCommandResult;
+
+void print_prompt() { printf("db > "); }
+
 void print_row(Row* row) {
   printf("(%d, %s, %s)\n", row->id, row->username, row->email);
 }
@@ -97,12 +104,6 @@ void free_table(Table* table) {
   }
   free(table);
 }
-
-
-typedef enum {
-  META_COMMAND_SUCCESS,
-  META_COMMAND_UNRECOGNIZED_COMMAND
-} MetaCommandResult;
 
 InputBuffer* new_input_buffer() {
   InputBuffer* input_buffer = malloc(sizeof(InputBuffer));
@@ -179,8 +180,6 @@ ExecuteResult execute_statement(Statement* statement, Table *table) {
 	return execute_select(statement, table);
   }
 }
-
-void print_prompt() { printf("db > "); }
 
 void read_input(InputBuffer* input_buffer) {
   ssize_t bytes_read =
