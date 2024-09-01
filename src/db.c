@@ -59,10 +59,14 @@ typedef enum {
   META_COMMAND_UNRECOGNIZED_COMMAND
 } MetaCommandResult;
 
-void print_prompt() { printf("db > "); }
+void print_prompt() { 
+  printf("db > "); 
+  fflush(stdout);
+}
 
 void print_row(Row* row) {
   printf("(%d, %s, %s)\n", row->id, row->username, row->email);
+  fflush(stdout);
 }
 
 void serialize_row(Row* source, void* destination) {
@@ -187,6 +191,7 @@ void read_input(InputBuffer* input_buffer) {
 
   if (bytes_read <= 0) {
     printf("Error reading input\n");
+    fflush(stdout);
     exit(EXIT_FAILURE);
   }
 
@@ -209,6 +214,7 @@ int main(int argc, char* argv[]) {
           continue;
         case (META_COMMAND_UNRECOGNIZED_COMMAND):
           printf("Unrecognized command '%s'\n", input_buffer->buffer);
+          fflush(stdout);
           continue;
       }
     }
@@ -219,19 +225,23 @@ int main(int argc, char* argv[]) {
         break;
       case (PREPARE_SYNTAX_ERROR):
         printf("Syntax error. Could not parse statement.\n");
+        fflush(stdout);
         continue;
       case (PREPARE_UNRECOGNIZED_STATEMENT):
         printf("Unrecognized keyword at start of '%s'.\n",
                input_buffer->buffer);
+        fflush(stdout);
         continue;
     }
 
     switch (execute_statement(&statement, table)) {
       case (EXECUTE_SUCCESS):
         printf("Executed.\n");
+        fflush(stdout);
         break;
       case (EXECUTE_TABLE_FULL):
         printf("Error: Table full.\n");
+        fflush(stdout);
         break;
     }
   }
