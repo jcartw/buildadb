@@ -73,30 +73,29 @@ typedef struct {
   Pager* pager;
 } Table;
 
-// Functions
+typedef struct {
+  Table* table;
+  uint32_t row_num;
+  bool end_of_table;  // Indicates a position one past the last element
+} Cursor;
 
-void print_prompt() { 
-  printf("db > "); 
-  fflush(stdout);
+// ------------------------------------ Utils
+
+InputBuffer* new_input_buffer() {
+  InputBuffer* input_buffer = malloc(sizeof(InputBuffer));
+  input_buffer->buffer = NULL;
+  input_buffer->buffer_length = 0;
+  input_buffer->input_length = 0;
+
+  return input_buffer;
 }
 
-void print_row(Row* row) {
-  printf("(%d, %s, %s)\n", row->id, row->username, row->email);
-  fflush(stdout);
+void close_input_buffer(InputBuffer* input_buffer) {
+    free(input_buffer->buffer);
+    free(input_buffer);
 }
 
-void serialize_row(Row* source, void* destination) {
-  memcpy(destination + ID_OFFSET, &(source->id), ID_SIZE);
-  memcpy(destination + USERNAME_OFFSET, &(source->username), USERNAME_SIZE);
-  memcpy(destination + EMAIL_OFFSET, &(source->email), EMAIL_SIZE);
-}
-
-void deserialize_row(void *source, Row* destination) {
-  memcpy(&(destination->id), source + ID_OFFSET, ID_SIZE);
-  memcpy(&(destination->username), source + USERNAME_OFFSET, USERNAME_SIZE);
-  memcpy(&(destination->email), source + EMAIL_OFFSET, EMAIL_SIZE);
-}
-
+// ------------------------------------ Pager Object
 
 Pager* pager_open(const char* filename) {
   int fd = open(filename,
@@ -178,6 +177,20 @@ void pager_flush(Pager* pager, uint32_t page_num, uint32_t size) {
   }
 }
 
+// ------------------------------------ Table Object
+
+void serialize_row(Row* source, void* destination) {
+  memcpy(destination + ID_OFFSET, &(source->id), ID_SIZE);
+  memcpy(destination + USERNAME_OFFSET, &(source->username), USERNAME_SIZE);
+  memcpy(destination + EMAIL_OFFSET, &(source->email), EMAIL_SIZE);
+}
+
+void deserialize_row(void *source, Row* destination) {
+  memcpy(&(destination->id), source + ID_OFFSET, ID_SIZE);
+  memcpy(&(destination->username), source + USERNAME_OFFSET, USERNAME_SIZE);
+  memcpy(&(destination->email), source + EMAIL_OFFSET, EMAIL_SIZE);
+}
+
 void* row_slot(Table* table, uint32_t row_num) {
   uint32_t page_num = row_num / ROWS_PER_PAGE;
   void* page = get_page(table->pager, page_num);
@@ -237,19 +250,7 @@ void db_close(Table* table) {
   free(table);
 }
 
-InputBuffer* new_input_buffer() {
-  InputBuffer* input_buffer = malloc(sizeof(InputBuffer));
-  input_buffer->buffer = NULL;
-  input_buffer->buffer_length = 0;
-  input_buffer->input_length = 0;
-
-  return input_buffer;
-}
-
-void close_input_buffer(InputBuffer* input_buffer) {
-    free(input_buffer->buffer);
-    free(input_buffer);
-}
+// ------------------------------------ Virtual Machine
 
 MetaCommandResult do_meta_command(InputBuffer* input_buffer, Table* table) {
   if (strcmp(input_buffer->buffer, ".exit") == 0) {
@@ -260,6 +261,44 @@ MetaCommandResult do_meta_command(InputBuffer* input_buffer, Table* table) {
     return META_COMMAND_UNRECOGNIZED_COMMAND;
   }
 }
+
+void print_row(Row* row) {
+  printf("(%d, %s, %s)\n", row->id, row->username, row->email);
+  fflush(stdout);
+}
+
+ExecuteResult execute_insert(Statement* statement, Table* table) {
+  if (table->num_rows >= TABLE_MAX_ROWS) {
+     return EXECUTE_TABLE_FULL;
+  }
+
+  Row* row_to_insert = &(statement->row_to_insert);
+
+  serialize_row(row_to_insert, row_slot(table, table->num_rows));
+  table->num_rows += 1;
+
+  return EXECUTE_SUCCESS;
+}
+
+ExecuteResult execute_select(Statement* statement, Table* table) {
+  Row row;
+  for (uint32_t i = 0; i < table->num_rows; i++) {
+     deserialize_row(row_slot(table, i), &row);
+     print_row(&row);
+  }
+  return EXECUTE_SUCCESS;
+}
+
+ExecuteResult execute_statement(Statement* statement, Table *table) {
+  switch (statement->type) {
+    case (STATEMENT_INSERT):
+       	return execute_insert(statement, table);
+    case (STATEMENT_SELECT):
+	return execute_select(statement, table);
+  }
+}
+
+// ------------------------------------ SQL Command Processor
 
 PrepareResult prepare_insert(InputBuffer* input_buffer, Statement* statement) {
   statement->type = STATEMENT_INSERT;
@@ -304,35 +343,11 @@ PrepareResult prepare_statement(InputBuffer* input_buffer,
   return PREPARE_UNRECOGNIZED_STATEMENT;
 }
 
-ExecuteResult execute_insert(Statement* statement, Table* table) {
-  if (table->num_rows >= TABLE_MAX_ROWS) {
-     return EXECUTE_TABLE_FULL;
-  }
+// ------------------------------------ Interface
 
-  Row* row_to_insert = &(statement->row_to_insert);
-
-  serialize_row(row_to_insert, row_slot(table, table->num_rows));
-  table->num_rows += 1;
-
-  return EXECUTE_SUCCESS;
-}
-
-ExecuteResult execute_select(Statement* statement, Table* table) {
-  Row row;
-  for (uint32_t i = 0; i < table->num_rows; i++) {
-     deserialize_row(row_slot(table, i), &row);
-     print_row(&row);
-  }
-  return EXECUTE_SUCCESS;
-}
-
-ExecuteResult execute_statement(Statement* statement, Table *table) {
-  switch (statement->type) {
-    case (STATEMENT_INSERT):
-       	return execute_insert(statement, table);
-    case (STATEMENT_SELECT):
-	return execute_select(statement, table);
-  }
+void print_prompt() { 
+  printf("db > "); 
+  fflush(stdout);
 }
 
 void read_input(InputBuffer* input_buffer) {
@@ -349,7 +364,6 @@ void read_input(InputBuffer* input_buffer) {
   input_buffer->input_length = bytes_read - 1;
   input_buffer->buffer[bytes_read - 1] = 0;
 }
-
 
 int main(int argc, char* argv[]) {
   if (argc < 2) {
