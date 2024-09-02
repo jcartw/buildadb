@@ -55,3 +55,64 @@ if equal_results(result[-2], "db > Error: Table full."):
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
+
+it = "allows inserting strings that are the maximum length"
+status = "FAILED"
+long_username = "a" * 32
+long_email = "a" * 255
+
+result = run_script([
+    f"insert 1 {long_username} {long_email}",
+    'select',
+    '.exit'
+])
+expectation = [
+    "db > Executed.",
+    f"db > (1, {long_username}, {long_email})",
+    "Executed."
+]
+if equal_results(result, expectation):
+    status = "PASSED"
+print(f"{it}: {status}")
+
+# ----------------------------------------------------- #
+
+it = "prints error message if strings are too long"
+status = "FAILED"
+long_username = "a" * 33
+long_email = "a" * 256
+
+result = run_script([
+    f"insert 1 {long_username} {long_email}",
+    'select',
+    '.exit'
+])
+expectation = [
+    "db > String is too long.",
+    "db > Executed.",
+    "db > "
+]
+if equal_results(result, expectation):
+    status = "PASSED"
+print(f"{it}: {status}")
+
+
+# ----------------------------------------------------- #
+
+it = "prints an error message if id is negative"
+status = "FAILED"
+
+result = run_script([
+    f"insert -1 cstack foo@bar.com",
+    'select',
+    '.exit'
+])
+expectation = [
+    "db > ID must be positive.",
+    "db > Executed.",
+    "db > "
+]
+if equal_results(result, expectation):
+    status = "PASSED"
+print(f"{it}: {status}")
+
