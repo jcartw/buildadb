@@ -1,29 +1,73 @@
 from subprocess import PIPE, Popen
+from queue import Queue, Empty
+from threading  import Thread
 import json
 import os
+import time
 
 # references:
 # - https://stackoverflow.com/questions/77802033/c-program-and-subprocess
+# - https://stackoverflow.com/questions/375427/a-non-blocking-read-on-a-subprocess-pipe-in-python
 
 # clear test.db before each run of script
 DB_FILENAME = "test.db"
 def clear_db():
     if os.path.isfile(DB_FILENAME):
         os.remove(DB_FILENAME)
-
 clear_db()
+
+
+class StdoutQueue:
+    def __init__(self, stdout):
+        self.q = Queue()
+        self.stopped = True
+        self.stdout = stdout
+
+    def stop(self):
+        self.stopped = True
+
+    def capture_lines(self):
+        for line in iter(self.stdout.readline, b''):
+            if len(line) > 0:
+                self.q.put(line)
+            if self.stopped:
+                break
+
+    def start(self):
+        self.stopped = False
+        t = Thread(target=self.capture_lines, args=())
+        t.daemon = True
+        t.start()
+
+    def get_results(self):
+        out = ""
+        while self.q.qsize() > 0:
+            out += self.q.get_nowait()
+        return out
+
 
 def run_script(commands):
 
     out = ""
     p = Popen([f"./db", DB_FILENAME], stdin=PIPE, stdout=PIPE, stderr=PIPE, text=True)
+    q = StdoutQueue(p.stdout)
+    q.start()
+    #SLEEP_TIME = 0.001
+    SLEEP_TIME = 0.001 / 2 ** 4
+
     try:
         for command in commands:
             p.stdin.write(command + "\n")
             p.stdin.flush()
-            out += p.stdout.readline()
+            time.sleep(SLEEP_TIME)
     finally:
+        q.stop()
+        time.sleep(SLEEP_TIME)
         p.kill()
+
+    # get results
+    time.sleep(0.1)
+    out = q.get_results()
 
     return list(filter(lambda x: len(x) > 0, out.split("\n")))
 
@@ -43,7 +87,8 @@ result = run_script([
 expectation = [
     "db > Executed.",
     "db > (1, user1, person1@example.com)",
-    "Executed."
+    "Executed.",
+    "db > "
 ]
 if equal_results(result, expectation):
     status = "PASSED"
@@ -82,10 +127,12 @@ result = run_script([
 expectation = [
     "db > Executed.",
     f"db > (1, {long_username}, {long_email})",
-    "Executed."
+    "Executed.",
+    "db > "
 ]
 if equal_results(result, expectation):
     status = "PASSED"
+
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
@@ -155,7 +202,34 @@ result = run_script([
 ])
 expectation = [
     "db > (1, user1, person1@example.com)",
-    "Executed."
+    "Executed.",
+    "db > "
+]
+if not equal_results(result, expectation):
+    status = "FAILED"
+
+print(f"{it}: {status}")
+
+
+# ----------------------------------------------------- #
+
+it = "prints constants"
+status = "PASSED"
+clear_db()
+
+result = run_script([
+    ".constants",
+    '.exit'
+])
+expectation = [
+    "db > Constants:",
+    "ROW_SIZE: 293",
+    "COMMON_NODE_HEADER_SIZE: 6",
+    "LEAF_NODE_HEADER_SIZE: 10",
+    "LEAF_NODE_CELL_SIZE: 297",
+    "LEAF_NODE_SPACE_FOR_CELLS: 4086",
+    "LEAF_NODE_MAX_CELLS: 13",
+    "db > "
 ]
 if not equal_results(result, expectation):
     status = "FAILED"
