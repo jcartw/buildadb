@@ -255,13 +255,36 @@ expectation = [
     "db > Executed.",
     "db > Tree:",
     "leaf (size 3)",
-    "  - 0 : 3",
-    "  - 1 : 1",
-    "  - 2 : 2",
+    "  - 0 : 1",
+    "  - 1 : 2",
+    "  - 2 : 3",
     "db > "
 ]
 if not equal_results(result, expectation):
     status = "FAILED ❌"
 
+print(f"{it}: {status}")
+
+# ----------------------------------------------------- #
+
+it = "prints an error message if there is a duplicate id"
+status = "FAILED ❌"
+clear_db()
+
+result = run_script([
+    "insert 1 user1 person1@example.com",
+    "insert 1 user1 person1@example.com",
+    'select',
+    '.exit'
+])
+expectation = [
+    "db > Executed.",
+    "db > Error: Duplicate key.",
+    "db > (1, user1, person1@example.com)",
+    "Executed.",
+    "db > ",
+]
+if equal_results(result, expectation):
+    status = "PASSED ✅"
 print(f"{it}: {status}")
 
