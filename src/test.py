@@ -77,7 +77,7 @@ def equal_results(a, b):
 # ----------------------------------------------------- #
 
 it = "inserts and retrieves a row"
-status = "FAILED"
+status = "FAILED ❌"
 clear_db()
 result = run_script([
     'insert 1 user1 person1@example.com',
@@ -91,14 +91,14 @@ expectation = [
     "db > "
 ]
 if equal_results(result, expectation):
-    status = "PASSED"
+    status = "PASSED ✅"
 
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
 
 it = "prints error message when table is full"
-status = "FAILED"
+status = "FAILED ❌"
 clear_db()
 statements = []
 for i in range(1401):
@@ -108,13 +108,13 @@ statements.append(".exit")
 
 result = run_script(statements)
 if equal_results(result[-2], "db > Error: Table full."):
-    status = "PASSED"
+    status = "PASSED ✅"
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
 
 it = "allows inserting strings that are the maximum length"
-status = "FAILED"
+status = "FAILED ❌"
 clear_db()
 long_username = "a" * 32
 long_email = "a" * 255
@@ -131,14 +131,14 @@ expectation = [
     "db > "
 ]
 if equal_results(result, expectation):
-    status = "PASSED"
+    status = "PASSED ✅"
 
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
 
 it = "prints error message if strings are too long"
-status = "FAILED"
+status = "FAILED ❌"
 clear_db()
 long_username = "a" * 33
 long_email = "a" * 256
@@ -154,14 +154,14 @@ expectation = [
     "db > "
 ]
 if equal_results(result, expectation):
-    status = "PASSED"
+    status = "PASSED ✅"
 print(f"{it}: {status}")
 
 
 # ----------------------------------------------------- #
 
 it = "prints an error message if id is negative"
-status = "FAILED"
+status = "FAILED ❌"
 clear_db()
 
 result = run_script([
@@ -175,14 +175,14 @@ expectation = [
     "db > "
 ]
 if equal_results(result, expectation):
-    status = "PASSED"
+    status = "PASSED ✅"
 print(f"{it}: {status}")
 
 
 # ----------------------------------------------------- #
 
 it = "keeps data after closing connection"
-status = "PASSED"
+status = "PASSED ✅"
 clear_db()
 
 result = run_script([
@@ -194,7 +194,7 @@ expectation = [
     "db > "
 ]
 if not equal_results(result, expectation):
-    status = "FAILED"
+    status = "FAILED ❌"
 
 result = run_script([
     f"select",
@@ -206,7 +206,7 @@ expectation = [
     "db > "
 ]
 if not equal_results(result, expectation):
-    status = "FAILED"
+    status = "FAILED ❌"
 
 print(f"{it}: {status}")
 
@@ -214,7 +214,7 @@ print(f"{it}: {status}")
 # ----------------------------------------------------- #
 
 it = "prints constants"
-status = "PASSED"
+status = "PASSED ✅"
 clear_db()
 
 result = run_script([
@@ -232,7 +232,36 @@ expectation = [
     "db > "
 ]
 if not equal_results(result, expectation):
-    status = "FAILED"
+    status = "FAILED ❌"
+
+print(f"{it}: {status}")
+
+# ----------------------------------------------------- #
+
+it = "allows printing out the structure of a one-node btree"
+status = "PASSED ✅"
+clear_db()
+
+commands = []
+for n in [3, 1, 2]:
+    commands.append(f"insert {n} user{n} person{n}@example.com")
+commands.append(".btree")
+commands.append(".exit")
+
+result = run_script(commands)
+expectation = [
+    "db > Executed.",
+    "db > Executed.",
+    "db > Executed.",
+    "db > Tree:",
+    "leaf (size 3)",
+    "  - 0 : 3",
+    "  - 1 : 1",
+    "  - 2 : 2",
+    "db > "
+]
+if not equal_results(result, expectation):
+    status = "FAILED ❌"
 
 print(f"{it}: {status}")
 
