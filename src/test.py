@@ -52,7 +52,7 @@ def run_script(commands):
     p = Popen([f"./db", DB_FILENAME], stdin=PIPE, stdout=PIPE, stderr=PIPE, text=True)
     q = StdoutQueue(p.stdout)
     q.start()
-    #SLEEP_TIME = 0.001
+    #SLEEP_TIME = 0.002
     SLEEP_TIME = 0.001 / 2 ** 4
 
     try:
@@ -60,6 +60,8 @@ def run_script(commands):
             p.stdin.write(command + "\n")
             p.stdin.flush()
             time.sleep(SLEEP_TIME)
+    except Exception as e:
+        pass
     finally:
         q.stop()
         time.sleep(SLEEP_TIME)
@@ -105,9 +107,10 @@ for i in range(1401):
     num = str(i + 1)
     statements.append(f"insert {num} user{num} person{num}@example.com")
 statements.append(".exit")
-
 result = run_script(statements)
-if equal_results(result[-2], "db > Error: Table full."):
+#if equal_results(result[-2], "db > Error: Table full."):
+#    status = "PASSED ✅"
+if equal_results(result[-1], "db > Need to implement searching an internal node"):
     status = "PASSED ✅"
 print(f"{it}: {status}")
 
@@ -254,10 +257,10 @@ expectation = [
     "db > Executed.",
     "db > Executed.",
     "db > Tree:",
-    "leaf (size 3)",
-    "  - 0 : 1",
-    "  - 1 : 2",
-    "  - 2 : 3",
+    "- leaf (size 3)",
+    "  - 1",
+    "  - 2",
+    "  - 3",
     "db > "
 ]
 if not equal_results(result, expectation):
@@ -288,3 +291,44 @@ if equal_results(result, expectation):
     status = "PASSED ✅"
 print(f"{it}: {status}")
 
+
+# ----------------------------------------------------- #
+
+it = "allows printing out the structure of a 3-leaf-node btree"
+status = "FAILED ❌"
+clear_db()
+
+commands = []
+for n in range(1, 15):
+    commands.append(f"insert {n} user{n} person{n}@example.com")
+
+commands.append(".btree")
+commands.append("insert 15 user15 person15@example.com")
+commands.append(".exit")
+result = run_script(commands)
+
+expectation = [
+    "db > Tree:",
+    "- internal (size 1)",
+    "  - leaf (size 7)",
+    "    - 1",
+    "    - 2",
+    "    - 3",
+    "    - 4",
+    "    - 5",
+    "    - 6",
+    "    - 7",
+    "  - key 7",
+    "  - leaf (size 7)",
+    "    - 8",
+    "    - 9",
+    "    - 10",
+    "    - 11",
+    "    - 12",
+    "    - 13",
+    "    - 14",
+    "db > Need to implement searching an internal node",
+]
+if equal_results(result[14:], expectation):
+    status = "PASSED ✅"
+print(f"{it}: {status}")
