@@ -108,10 +108,9 @@ for i in range(1401):
     statements.append(f"insert {num} user{num} person{num}@example.com")
 statements.append(".exit")
 result = run_script(statements)
-#if equal_results(result[-2], "db > Error: Table full."):
-#    status = "PASSED ✅"
-if equal_results(result[-1], "db > Need to implement searching an internal node"):
+if equal_results(result[-1], "db > Need to implement updating parent after split"):
     status = "PASSED ✅"
+
 print(f"{it}: {status}")
 
 # ----------------------------------------------------- #
@@ -327,7 +326,8 @@ expectation = [
     "    - 12",
     "    - 13",
     "    - 14",
-    "db > Need to implement searching an internal node",
+    "db > Executed.",
+    "db > ",
 ]
 if equal_results(result[14:], expectation):
     status = "PASSED ✅"
