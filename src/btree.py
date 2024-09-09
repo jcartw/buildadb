@@ -20,7 +20,8 @@ class BtreeNodeLeaf(BtreeNode):
         super(is_root)
         self._node_type = NodeType.NODE_LEAF
         self._num_cells = 0
-        self._cell_list = [{"key": 0, "value": 0}] * LEAF_NODE_MAX_CELLS
+        # preallocate cells array
+        self._cell_list = [(0, {})] * LEAF_NODE_MAX_CELLS # (key, val)
 
 class BtreeNodeInternal(BtreeNode):
     def __init__(self, is_root = False):
@@ -28,9 +29,8 @@ class BtreeNodeInternal(BtreeNode):
         self._node_type = NodeType.NODE_INTERNAL
         self._num_keys = 0
         self._right_child_pointer = 0
-        self._keys_list = [ 0 ] * INTERNAL_NODE_MAX_KEYS
-        self._child_pointer_list = [ 0 ] * INTERNAL_NODE_MAX_KEYS
-
+        # preallocate cells array
+        self._cell_list = [(0, 0)] * LEAF_NODE_MAX_CELLS # (child pointer, key)
 
 class Pager:
     def __init__(self):
