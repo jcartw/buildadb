@@ -103,6 +103,9 @@ class BtreeNodeInternal(BtreeNode):
     def set_cell(self, cell_num: int, cell):
         self._cell_list[cell_num] = cell
 
+    def get_right_child_ptr(self):
+        return self._right_child_pointer
+
     def set_right_child_ptr(self, ptr: int):
         self._right_child_pointer = ptr
 
@@ -127,7 +130,7 @@ class BtreeNodeInternal(BtreeNode):
 
 class Pager:
     def __init__(self):
-        self._next_page = 0
+        self._next_page = 1
         self._node_map = {}
 
     def get_unused_page_num(self):
@@ -212,7 +215,7 @@ class Cursor:
         #  Starting from the right, move each key to correct position.
 
         for i in range(LEAF_NODE_MAX_CELLS, -1, -1):
-            destination_node = new_node if i > LEAF_NODE_LEFT_SPLIT_COUNT else old_node
+            destination_node = new_node if i >= LEAF_NODE_LEFT_SPLIT_COUNT else old_node
             index_within_node = i % LEAF_NODE_LEFT_SPLIT_COUNT
 
             if i == self._cell_num:
@@ -246,11 +249,9 @@ class Btree:
     def get_start(self) -> Cursor:
         cursor = Cursor(btree=self, page_num=self._root_page_num)
         cursor.set_cell_num(0)
-
         root_node = self._pager.get_page(self._root_page_num)
         num_cells = root_node.get_num_cells()
         cursor.set_end_of_table(num_cells == 0)
-
         return cursor
 
     def execute_insert(self, key: int, val):
@@ -360,16 +361,42 @@ class Btree:
         root.set_right_child_ptr(right_child_page_num)
         self._pager.set_page(self._root_page_num, root)
 
+    def print(self, page_num: int = 0, indentation_level: int = 0, depth: int = 0):
+        node = self._pager.get_page(page_num)
+
+        if isinstance(node, BtreeNodeLeaf):
+            num_keys = node.get_num_cells()
+            indent = "  " * indentation_level
+            print(f"{indent}- leaf (size {num_keys})")
+            for i in range(num_keys):
+                indent = "  " * (indentation_level + 1)
+                print(f"{indent}- {node.get_key(i)}")
+        elif isinstance(node, BtreeNodeInternal):
+            num_keys = node.get_num_keys()
+            indent = "  " * indentation_level
+            print(f"{indent}- internal (size {num_keys})")
+            for i in range(num_keys):
+                child_page_num = node.get_child_ptr(child_num=i)
+                self.print(child_page_num, indentation_level + 1, depth + 1)
+                indent = "  " * (indentation_level + 1)
+                print(f"{indent}- key {node.get_key(i)}")
+            
+            right_child_ptr = node.get_right_child_ptr()
+            self.print(right_child_ptr, indentation_level + 1, depth + 1)
+
 
 if __name__ == "__main__":
     btree = Btree()
 
     data = []
-    for i in range(5):
+    for i in range(1, 15):
         val = {"id": i, "user": f"person{i}", "email": f"person{i}@example.com"}
         btree.execute_insert(key=i, val=val)
 
     print(btree)
-    btree.execute_select()
+    #btree.execute_select()
+    print("---------------")
+    btree.print()
+
 
     
