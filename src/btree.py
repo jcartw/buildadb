@@ -33,6 +33,7 @@ class BtreeNodeLeaf(BtreeNode):
         n._is_root = self._is_root
         n._parent_pointer = self._parent_pointer
         n._num_cells = self._num_cells
+        n._next_leaf_ptr = self._next_leaf_ptr
         n._cell_list = copy.deepcopy(self._cell_list)
         return n
 
