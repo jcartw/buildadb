@@ -1,4 +1,5 @@
 import copy
+import random
 from typing import Union
 
 # Contstants
@@ -8,17 +9,26 @@ LEAF_NODE_LEFT_SPLIT_COUNT = (LEAF_NODE_MAX_CELLS + 1) - LEAF_NODE_RIGHT_SPLIT_C
 
 INTERNAL_NODE_MAX_KEYS = 510
 
+# Keep this small for testing
+INTERNAL_NODE_MAX_CELLS = 3
+
 class BtreeNode:
     def __init__(self, is_root = False):
         # common fields
         self._is_root = is_root
-        self._parent_pointer = 0
+        self._parent_ptr = 0
 
     def is_root(self):
         return self._is_root
 
     def set_is_root(self, is_root: bool):
         self._is_root = is_root
+
+    def get_parent_ptr(self):
+        return self._parent_ptr
+
+    def set_parent_ptr(self, ptr):
+        self._parent_ptr = ptr
 
 class BtreeNodeLeaf(BtreeNode):
     def __init__(self, is_root = False):
@@ -31,7 +41,7 @@ class BtreeNodeLeaf(BtreeNode):
     def copy(self):
         n = BtreeNodeLeaf()
         n._is_root = self._is_root
-        n._parent_pointer = self._parent_pointer
+        n._parent_ptr = self._parent_ptr
         n._num_cells = self._num_cells
         n._next_leaf_ptr = self._next_leaf_ptr
         n._cell_list = copy.deepcopy(self._cell_list)
@@ -62,6 +72,7 @@ class BtreeNodeLeaf(BtreeNode):
     def get_max_key(self) -> int:
         k, _ = self.get_cell(self._num_cells - 1)
         return k
+    
 
 
 class BtreeNodeInternal(BtreeNode):
@@ -123,6 +134,28 @@ class BtreeNodeInternal(BtreeNode):
         else:
             ptr, _ = self._cell_list[child_num]
             return ptr
+
+    def find_child(self, key: int) -> int:
+        # Return the index of the child which should contain
+        # the given key.
+        num_keys = self.get_num_keys()
+
+        # Binary search
+        min_index = 0
+        max_index = num_keys # there is one more child than key
+        while min_index != max_index:
+            index = (min_index + max_index) // 2
+            key_to_right = self.get_key(cell_num=index)
+            if key_to_right >= key:
+                max_index = index
+            else:
+                min_index = index + 1
+        return min_index
+
+    def update_key(self, old_key: int, new_key: int):
+        old_child_index = self.find_child(old_key)
+        child_ptr, _ = self.get_cell(old_child_index)
+        self.set_cell(old_child_index, (child_ptr, new_key))
 
 class Pager:
     def __init__(self):
@@ -217,8 +250,10 @@ class Cursor:
         #  Update parent or create a new parent.
 
         old_node: BtreeNodeLeaf = self._btree._pager.get_page(self._page_num)
+        old_max = old_node.get_max_key()
         new_page_num: int = self._btree._pager.get_unused_page_num()
         new_node: BtreeNodeLeaf = self._btree._pager.get_page(new_page_num)
+        new_node.set_parent_ptr(old_node.get_parent_ptr())
 
         # Whenever we split a leaf node, update the sibling pointers. 
         # The old leaf’s sibling becomes the new leaf, and the new leaf’s 
@@ -249,7 +284,12 @@ class Cursor:
         if old_node.is_root():
             return self._btree.create_new_root(right_child_page_num=new_page_num)
         else:
-            raise Exception("Need to implement updating parent after split")
+            parent_page_num = old_node.get_parent_ptr()
+            new_max = old_node.get_max_key()
+            parent: BtreeNodeInternal = self._btree._pager.get_page(parent_page_num)
+            parent.update_key(old_max, new_max)
+            self._btree.internal_node_insert(parent_page_num, new_page_num)
+            return 
 
 class Btree:
     def __init__(self):
@@ -328,23 +368,11 @@ class Btree:
         return cursor
 
     def internal_node_find(self, page_num: int, key: int) -> Cursor:
-        node = self._pager.get_page(page_num=page_num)
-        num_keys = node.get_num_keys()
 
-        # Binary search to find index of child to search
-        min_index = 0
-        max_index = num_keys # there is one more child than key
-
-        while min_index != max_index:
-            index = (min_index + max_index) // 2
-            key_to_right = node.get_key(cell_num=index)
-            if key_to_right >= key:
-                max_index = index
-            else:
-                min_index = index + 1
-
-        child_page_num = node.get_child_ptr(child_num=min_index)
-        child = self._pager.get_page(child_page_num)
+        node: BtreeNodeInternal = self._pager.get_page(page_num=page_num)
+        child_index = node.find_child(key)
+        child_page_num = node.get_child_ptr(child_index)
+        child = self._pager.get_page(page_num=child_page_num)
 
         if isinstance(child, BtreeNodeLeaf):
             return self.leaf_node_find(child_page_num, key)
@@ -362,6 +390,7 @@ class Btree:
 
         # get current root
         root = self._pager.get_page(self._root_page_num)
+        right_child = self._pager.get_page(right_child_page_num)
 
         # Left child has data copied from old root
         left_child = root.copy()
@@ -376,6 +405,35 @@ class Btree:
         root.set_cell(cell_num=0, cell=(left_child_page_num, left_child_max_key))
         root.set_right_child_ptr(right_child_page_num)
         self._pager.set_page(self._root_page_num, root)
+        left_child.set_parent_ptr(self._root_page_num)
+        right_child.set_parent_ptr(self._root_page_num)
+
+    def internal_node_insert(self, parent_page_num: int, child_page_num: int):
+
+        #  Add a new child/key pair to parent that corresponds to child
+        parent = self._pager.get_page(parent_page_num)
+        child = self._pager.get_page(child_page_num)
+        child_max_key = child.get_max_key()
+        index = parent.find_child(child_max_key)
+
+        original_num_keys = parent.get_num_keys()
+        parent.set_num_keys(original_num_keys + 1)
+
+        if original_num_keys >= INTERNAL_NODE_MAX_CELLS:
+            raise Exception("Need to implement splitting internal node")
+
+        right_child_page_num = parent.get_right_child_ptr()
+        right_child = self._pager.get_page(right_child_page_num)
+
+        if (child_max_key > right_child.get_max_key()):
+            # replace right child
+            parent.set_cell(original_num_keys, (right_child_page_num, right_child.get_max_key()))
+            parent.set_right_child_ptr(child_page_num)
+        else:
+            # Make room for the new cell
+            for i in range(original_num_keys, index, -1):
+                parent.set_cell(i, parent.get_cell(i - 1))
+            parent.set_cell(index, (child_page_num, child_max_key))
 
     def print(self, page_num: int = 0, indentation_level: int = 0, depth: int = 0):
         node = self._pager.get_page(page_num)
@@ -405,15 +463,23 @@ if __name__ == "__main__":
     btree = Btree()
 
     data = []
-    #for i in range(1, 15):
-    for i in range(20):
+    for i in range(30):
         val = {"id": i, "user": f"person{i}", "email": f"person{i}@example.com"}
-        btree.execute_insert(key=i, val=val)
+        data.append((i, val))
 
-    print(btree)
+    # shuffle input data
+    for i in reversed(range(len(data))):
+        j = random.randint(0, i)
+        data[i], data[j] = data[j], data[i]
+
+    for key, val in data:
+        btree.execute_insert(key, val)
+
+    print("---------------")
     btree.execute_select()
     print("---------------")
     btree.print()
+    print("---------------")
 
 
     
