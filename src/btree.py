@@ -20,20 +20,11 @@ class BtreeNode:
     def set_is_root(self, is_root: bool):
         self._is_root = is_root
 
-
-#uint32_t get_node_max_key(void* node) {
-#  switch (get_node_type(node)) {
-#    case NODE_INTERNAL:
-#      return *internal_node_key(node, *internal_node_num_keys(node) - 1);
-#    case NODE_LEAF:
-#      return *leaf_node_key(node, *leaf_node_num_cells(node) - 1);
-#  }
-#}
-
 class BtreeNodeLeaf(BtreeNode):
     def __init__(self, is_root = False):
         super().__init__(is_root)
         self._num_cells = 0
+        self._next_leaf_ptr = 0 # 0 represents no sibling
         # preallocate cells array
         self._cell_list = [(0, {})] * LEAF_NODE_MAX_CELLS # (key, val)
 
@@ -45,14 +36,23 @@ class BtreeNodeLeaf(BtreeNode):
         n._cell_list = copy.deepcopy(self._cell_list)
         return n
 
-    def get_type(self):
-        return self._node_type
-
     def get_num_cells(self):
         return self._num_cells
 
+    def set_num_cells(self, num_cells: int):
+        self._num_cells = num_cells
+
+    def get_next_leaf_ptr(self):
+        return self._next_leaf_ptr
+
+    def set_next_leaf_ptr(self, ptr: int):
+        self._next_leaf_ptr = ptr
+
     def get_cell(self, cell_num: int):
         return self._cell_list[cell_num]
+
+    def set_cell(self, cell_num, cell):
+        self._cell_list[cell_num] = cell
 
     def get_key(self, cell_num: int):
         k, _ = self.get_cell(cell_num) # (key, val)
@@ -62,11 +62,6 @@ class BtreeNodeLeaf(BtreeNode):
         k, _ = self.get_cell(self._num_cells - 1)
         return k
 
-    def set_cell(self, cell_num, cell):
-        self._cell_list[cell_num] = cell
-
-    def set_num_cells(self, num_cells: int):
-        self._num_cells = num_cells
 
 class BtreeNodeInternal(BtreeNode):
     def __init__(self, is_root = False):
@@ -159,6 +154,12 @@ class Cursor:
         self._cell_num = 0
         self._end_of_table = False
 
+    def get_page_num(self):
+        return self._page_num
+
+    def set_page_num(self, page_num):
+        self._page_num = page_num
+
     def get_cell_num(self):
         return self._cell_num
 
@@ -180,8 +181,16 @@ class Cursor:
         node: BtreeNodeLeaf = self._btree._pager.get_page(self._page_num)
         self._cell_num += 1
 
+        # Advance to next leaf node
         if self._cell_num >= node.get_num_cells():
-            self._end_of_table = True
+            next_page_num = node.get_next_leaf_ptr()
+            if next_page_num == 0:
+                # This was the rightmost leaf
+                self._end_of_table = True
+            else:
+                # move to next leaf and start at cell 0
+                self.set_page_num(next_page_num)
+                self.set_cell_num(0)
 
     def leaf_node_insert(self, key: int, val) -> None:
         node: BtreeNodeLeaf = self._btree._pager.get_page(self._page_num)
@@ -210,6 +219,12 @@ class Cursor:
         new_page_num: int = self._btree._pager.get_unused_page_num()
         new_node: BtreeNodeLeaf = self._btree._pager.get_page(new_page_num)
 
+        # Whenever we split a leaf node, update the sibling pointers. 
+        # The old leaf’s sibling becomes the new leaf, and the new leaf’s 
+        # sibling becomes whatever used to be the old leaf’s sibling.
+        new_node.set_next_leaf_ptr(old_node.get_next_leaf_ptr())
+        old_node.set_next_leaf_ptr(new_page_num)
+
         #  All existing keys plus new key should be divided
         #  evenly between old (left) and new (right) nodes.
         #  Starting from the right, move each key to correct position.
@@ -220,6 +235,7 @@ class Cursor:
 
             if i == self._cell_num:
                 destination_node.set_cell(cell_num=index_within_node, cell=(key, val))
+
             elif i > self._cell_num:
                 destination_node.set_cell(cell_num=index_within_node, cell=old_node.get_cell(i - 1))
             else:
@@ -247,10 +263,9 @@ class Btree:
         return Cursor(btree=self, page_num=page_num)
 
     def get_start(self) -> Cursor:
-        cursor = Cursor(btree=self, page_num=self._root_page_num)
-        cursor.set_cell_num(0)
-        root_node = self._pager.get_page(self._root_page_num)
-        num_cells = root_node.get_num_cells()
+        cursor = self.table_find(0)
+        node = self._pager.get_page(cursor.get_page_num())
+        num_cells = node.get_num_cells()
         cursor.set_end_of_table(num_cells == 0)
         return cursor
 
@@ -389,12 +404,13 @@ if __name__ == "__main__":
     btree = Btree()
 
     data = []
-    for i in range(1, 15):
+    #for i in range(1, 15):
+    for i in range(20):
         val = {"id": i, "user": f"person{i}", "email": f"person{i}@example.com"}
         btree.execute_insert(key=i, val=val)
 
     print(btree)
-    #btree.execute_select()
+    btree.execute_select()
     print("---------------")
     btree.print()
 
