@@ -190,11 +190,6 @@ class Pager:
     def set_page(self, page_num, node):
         self._node_map[page_num] = node
 
-    def print_node_types(self):
-        for page_num, node in self._node_map.items():
-            typestr = "INTERNAL" if isinstance(node, BtreeNodeInternal) else "LEAF"
-            print(f"page_num {page_num}: {typestr}")
-
     def get_node_max_key(self, node: Union[BtreeNodeLeaf,BtreeNodeInternal]) -> int:
         if isinstance(node, BtreeNodeLeaf):
             return node.get_max_key_internal()
@@ -450,10 +445,6 @@ class Btree:
         child = self._pager.get_page(child_page_num)
         child_max_key = self._pager.get_node_max_key(child)
 
-        if isinstance(parent, BtreeNodeLeaf):
-            print(f"parent_page_num: {parent_page_num}")
-            self._pager.print_node_types()
-
         index = parent.find_child(child_max_key)
 
         original_num_keys = parent.get_num_keys()
@@ -510,8 +501,6 @@ class Btree:
         # need to find a place for our newly created node in its parent, and we
         # cannot insert it at the correct index if it does not yet have any keys
         splitting_root = old_node.is_root()
-
-        print(f"splitting root: {splitting_root}")
 
         if splitting_root:
             self.create_new_root(new_page_num)
@@ -591,28 +580,3 @@ class Btree:
                 child_page_num = node.get_right_child_ptr()
                 self.print(child_page_num, indentation_level + 1)
 
-
-if __name__ == "__main__":
-    btree = Btree()
-
-    data = []
-    for i in range(100):
-        val = {"id": i, "user": f"person{i}", "email": f"person{i}@example.com"}
-        data.append((i, val))
-
-    # shuffle input data
-    # for i in reversed(range(len(data))):
-    #     j = random.randint(0, i)
-    #     data[i], data[j] = data[j], data[i]
-
-    for key, val in data:
-        btree.execute_insert(key, val)
-
-    print("---------------")
-    #btree.execute_select()
-    print("---------------")
-    btree.print()
-    print("---------------")
-
-
-    
