@@ -23,5 +23,6 @@ t1_stop = perf_counter()
 
 delta_t = round(t1_stop - t1_start, 3)
 print(f"Elapsed time (N = {N}): {delta_t}")
+btree.print_split_counts()
 
 # results: 1.782, 1.777, 1.777, 1.799, 1.816

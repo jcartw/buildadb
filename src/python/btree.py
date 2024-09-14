@@ -10,7 +10,8 @@ LEAF_NODE_LEFT_SPLIT_COUNT = (LEAF_NODE_MAX_CELLS + 1) - LEAF_NODE_RIGHT_SPLIT_C
 INTERNAL_NODE_MAX_KEYS = 510
 
 # Keep this small for testing
-INTERNAL_NODE_MAX_CELLS = 3
+#INTERNAL_NODE_MAX_CELLS = 3
+INTERNAL_NODE_MAX_CELLS = 500
 
 # value for invalid page nums
 INVALID_PAGE_NUM = -1
@@ -262,6 +263,7 @@ class Cursor:
         node.set_num_cells(num_cells + 1)
 
     def leaf_node_split_and_insert(self, key: int, val):
+        self._btree._split_cnt_leaf_node += 1
         #  Create a new node and move half the cells over.
         #  Insert the new value in one of the two nodes.
         #  Update parent or create a new parent.
@@ -313,10 +315,18 @@ class Btree:
     def __init__(self):
         self._pager = Pager()
         self._root_page_num = 0
-
+        # split counts
+        self._split_cnt_internal_node = 0
+        self._split_cnt_leaf_node = 0
+        self._split_cnt_root = 0
         # init root node (leaf node)
         root_node = BtreeNodeLeaf(is_root=True)
         self._pager.set_page(self._root_page_num, root_node)
+
+    def print_split_counts(self):
+        print(f"Split count (internal node): {self._split_cnt_internal_node}")
+        print(f"Split count (leaf node): {self._split_cnt_leaf_node}")
+        print(f"Split count (root): {self._split_cnt_root}")
 
     def get_cursor(self, page_num) -> Cursor:
         return Cursor(btree=self, page_num=page_num)
@@ -405,6 +415,7 @@ class Btree:
         #  Address of right child passed in.
         #  Re-initialize root page to contain the new root node.
         #  New root node points to two children.
+        self._split_cnt_root += 1
 
         # get current root
         root = self._pager.get_page(self._root_page_num)
@@ -480,6 +491,8 @@ class Btree:
             parent.set_cell(index, (child_page_num, child_max_key))
 
     def internal_node_split_and_insert(self, parent_page_num: int, child_page_num: int) -> None:
+        self._split_cnt_internal_node += 1
+
         old_page_num = parent_page_num
         old_node = self._pager.get_page(parent_page_num)
         old_max = self._pager.get_node_max_key(old_node)

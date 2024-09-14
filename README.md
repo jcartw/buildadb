@@ -1,5 +1,5 @@
 # buildadb
-Build a simple database
+Build a simple database. Based on cstack's DB tutorial: https://cstack.github.io/db_tutorial/.
 
 ## B-Tree Insertion
 
@@ -11,8 +11,15 @@ Build a simple database
     - Re-initialize root node (page 0) as an internal node and set left and right child
       pointers, pages 2 and 1, respectively.
 
+## Interesting findings
 
-## Reference
+- Sequential insertions lead to 50% B+Tree "fill factor", whereas random insertion provides a roughly 70% "fill factor" (see https://stackoverflow.com/questions/73498429/btree-splitting-leads-to-leaf-nodes-with-less-capacity).
+- Depending on the setting of INTERNAL_NODE_MAX_CELLS, the sequential inserts may be more or less performant than random inserts.
 
-- https://cstack.github.io/db_tutorial/
+## Main Reference
+
+- https://planetscale.com/blog/btrees-and-database-indexes
 - https://use-the-index-luke.com/
+- https://www.cybertec-postgresql.com/en/what-is-fillfactor-and-how-does-it-affect-postgresql-performance/
+- https://maciejwalkowiak.com/blog/postgres-uuid-primary-key/
+- https://stackoverflow.com/questions/73498429/btree-splitting-leads-to-leaf-nodes-with-less-capacity
